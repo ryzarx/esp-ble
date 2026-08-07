@@ -124,20 +124,13 @@
       <span class="muted">Привязка на ESP</span>
       <span class="badge" id="espBound">—</span>
     </div>
+    <div id="relayRows"></div>
     <div class="row">
-      <span><span class="bulb" id="bulb1"></span>Лампа 1 (GPIO3)</span>
-      <label class="switch"><input type="checkbox" id="lamp1" disabled onchange="setLamp('LAMP1',this.checked)"><span class="slider"></span></label>
-    </div>
-    <div class="row">
-      <span><span class="bulb" id="bulb2"></span>Лампа 2 (GPIO4)</span>
-      <label class="switch"><input type="checkbox" id="lamp2" disabled onchange="setLamp('LAMP2',this.checked)"><span class="slider"></span></label>
-    </div>
-    <div class="row">
-      <span class="muted">Кнопка 1 (GPIO5)</span>
+      <span class="muted">Кнопка 1 (GPIO0)</span>
       <span class="badge" id="btn1">—</span>
     </div>
     <div class="row">
-      <span class="muted">Кнопка 2 (GPIO6)</span>
+      <span class="muted">Кнопка 2 (GPIO1)</span>
       <span class="badge" id="btn2">—</span>
     </div>
     <div class="btn-group" style="margin-top:10px">
@@ -10268,6 +10261,21 @@ let boundEsp = localStorage.getItem('scada_bound_esp') || '';
 let target = null;              // {action,name,mac}
 let device=null, gattServer=null, ctrlChar=null, statusChar=null, connectedName='';
 
+// Реле: подписи GPIO должны совпадать с прошивкой (PIN_RELAY[])
+const RELAY_GPIOS = [3, 4, 5, 6, 7, 10];
+function buildRelays(){
+  const host = document.getElementById('relayRows');
+  if(!host) return;
+  host.innerHTML = RELAY_GPIOS.map((gp,idx)=>{
+    const n = idx+1;
+    return `<div class="row">
+      <span><span class="bulb" id="bulb${n}"></span>Реле ${n} (GPIO${gp})</span>
+      <label class="switch"><input type="checkbox" id="relay${n}" disabled
+        onchange="setRelay('RELAY${n}',this.checked)"><span class="slider"></span></label>
+    </div>`;
+  }).join('');
+}
+
 // ---------- utils ----------
 function log(s, cls){
   const el = document.getElementById('log');
@@ -10282,8 +10290,9 @@ function setConn(on){
   document.getElementById('devBadge').className = 'badge' + (on?' on':'');
   document.getElementById('disBtn').disabled = !on;
   document.getElementById('resetBtn').disabled = !on;
-  document.getElementById('lamp1').disabled = !on;
-  document.getElementById('lamp2').disabled = !on;
+  for(let i=1;i<=RELAY_GPIOS.length;i++){
+    const el=document.getElementById('relay'+i); if(el) el.disabled = !on;
+  }
   renderTarget();   // текст/логика QR-кнопки зависит от того, подключены ли мы
 }
 function renderSelf(){
@@ -10432,10 +10441,11 @@ function doReset(){
 }
 function onStatus(txt){
   let d; try{ d=JSON.parse(txt); }catch(e){ return; }
-  document.getElementById('lamp1').checked = !!d.lamp1;
-  document.getElementById('lamp2').checked = !!d.lamp2;
-  document.getElementById('bulb1').classList.toggle('on', !!d.lamp1);
-  document.getElementById('bulb2').classList.toggle('on', !!d.lamp2);
+  for(let i=1;i<=RELAY_GPIOS.length;i++){
+    const v=!!d['relay'+i];
+    const cb=document.getElementById('relay'+i); if(cb) cb.checked=v;
+    const bulb=document.getElementById('bulb'+i); if(bulb) bulb.classList.toggle('on', v);
+  }
   setBadge('btn1', d.btn1); setBadge('btn2', d.btn2);
   const eb = document.getElementById('espBound');
   if(d.bound){ eb.textContent = 'занята · '+(d.owner||'?'); eb.className='badge on'; }
@@ -10474,7 +10484,7 @@ async function doAction(){
 async function connectManual(){
   await requestAndConnect(null).catch(e=>log('ошибка: '+e.message));
 }
-function setLamp(tgt,on){ send('SET|'+scannerId+'|'+tgt+'|'+(on?1:0)); }
+function setRelay(tgt,on){ send('SET|'+scannerId+'|'+tgt+'|'+(on?1:0)); }
 function disconnect(){ if(device&&device.gatt.connected) device.gatt.disconnect(); }
 function onDisconnect(){ setConn(false); ctrlChar=statusChar=gattServer=null; log('Отключено'); }
 
@@ -10490,6 +10500,7 @@ function forgetBinding(){
   log('Локальная привязка забыта (на ESP она осталась — сделай UNBIND, чтобы освободить её).');
 }
 
+buildRelays();
 renderSelf(); renderTarget();
 if(!navigator.bluetooth) log('⚠ Web Bluetooth недоступен в этом браузере. Chrome/Edge на ПК или Android.');
 </script>
