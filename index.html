@@ -12819,19 +12819,31 @@ function forgetBinding(){
 // ---------- Генерация QR для подключённой ESP ----------
 // Имя берём из подключения (connectedName = SCADA-XXXXXX). Рисуем 3 кода
 // (BIND/UNBIND/RESET) с ссылкой «Скачать PNG». MAC в payload не нужен (не используется).
-function qrCanvas(text, targetPx){
+// Рисует QR и, если задана caption, подпись под ним (как в gen_qr.py) —
+// подпись становится частью картинки, поэтому видна и при сохранении/пересылке.
+function qrCanvas(text, targetPx, caption){
   const qr = qrcode(0, 'M');       // 0 = авто-версия, 'M' = уровень коррекции
   qr.addData(text);                // по умолчанию байтовый режим (годится для нашего текста)
   qr.make();
   const n = qr.getModuleCount(), margin = 4, cells = n + margin*2;
   const scale = Math.max(2, Math.floor(targetPx / cells));
+  const qrSize = cells * scale;
+  const capH = caption ? Math.round(qrSize * 0.13) : 0;   // высота полосы под подпись
   const cv = document.createElement('canvas');
-  cv.width = cv.height = cells * scale;
+  cv.width = qrSize;
+  cv.height = qrSize + capH;
   const cx = cv.getContext('2d');
   cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
   cx.fillStyle = '#000';
   for(let r=0; r<n; r++) for(let c=0; c<n; c++)
     if(qr.isDark(r, c)) cx.fillRect((c+margin)*scale, (r+margin)*scale, scale, scale);
+  if(caption){
+    cx.fillStyle = '#000';
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.font = 'bold ' + Math.round(capH * 0.44) + 'px -apple-system,"Segoe UI",Arial,sans-serif';
+    cx.fillText(caption, qrSize / 2, qrSize + capH * 0.52);
+  }
   return cv;
 }
 function makeDeviceQr(){
@@ -12843,11 +12855,12 @@ function makeDeviceQr(){
   [['bind','ПРИВЯЗКА (BIND)'],['unbind','ОТВЯЗКА (UNBIND)'],['reset','СБРОС (RESET)']]
   .forEach(([action, label])=>{
     const payload = 'SCADA1|' + action + '|' + name + '|';
-    const url = qrCanvas(payload, 320).toDataURL('image/png');
+    const caption = name + ' · ' + action.toUpperCase();   // вписывается в картинку
+    const url = qrCanvas(payload, 320, caption).toDataURL('image/png');
     const wrap = document.createElement('div');
     wrap.style.cssText = 'text-align:center; margin:14px 0';
     wrap.innerHTML =
-      '<img src="'+url+'" style="width:220px; height:220px; background:#fff; border-radius:8px">' +
+      '<img src="'+url+'" style="width:220px; height:auto; background:#fff; border-radius:8px">' +
       '<div class="muted" style="margin:6px 0">'+label+'</div>' +
       '<a class="btn sec" style="text-decoration:none; display:inline-block" href="'+url+
         '" download="SCADA_'+name+'_'+action+'.png">Скачать PNG</a>';
