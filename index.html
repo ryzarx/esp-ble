@@ -124,6 +124,13 @@
       <span class="muted">Привязка на ESP</span>
       <span class="badge" id="espBound">—</span>
     </div>
+    <div class="row">
+      <span class="muted">Сигнал (RSSI)</span>
+      <span style="display:inline-flex; align-items:center; gap:8px">
+        <span id="rssiVal" style="font-size:13px; color:var(--muted)">—</span>
+        <span id="rssiBars" style="display:inline-flex; align-items:flex-end; gap:2px; height:16px"></span>
+      </span>
+    </div>
     <div id="relayRows"></div>
     <div class="row">
       <span class="muted">Кнопка 1 (GPIO0)</span>
@@ -12766,10 +12773,31 @@ function onStatus(txt){
   const eb = document.getElementById('espBound');
   if(d.bound){ eb.textContent = 'занята · '+(d.owner||'?'); eb.className='badge on'; }
   else { eb.textContent = 'свободна'; eb.className='badge'; }
+  renderRssi(d.rssi);
 }
 function setBadge(id,v){
   const el=document.getElementById(id); const on=!!v;
   el.textContent = on?'НАЖАТА':'отпущена'; el.className='badge'+(on?' on':'');
+}
+// RSSI: число + 4 палочки (цвет = качество). rssi==0/нет -> нет данных.
+function barsHtml(n, col){
+  let h='';
+  for(let i=0;i<4;i++){
+    const height = 5 + i*3;                       // 5,8,11,14 px
+    const bg = i < n ? col : 'var(--track)';
+    h += '<span style="width:4px;height:'+height+'px;background:'+bg+';border-radius:1px"></span>';
+  }
+  return h;
+}
+function renderRssi(r){
+  const val = document.getElementById('rssiVal'), bars = document.getElementById('rssiBars');
+  if(!val || !bars) return;
+  if(r===undefined || r===null || r===0){
+    val.textContent='—'; val.style.color='var(--muted)'; bars.innerHTML=barsHtml(0,'var(--muted)'); return;
+  }
+  const col = r>=-60 ? 'var(--ok)' : r>=-75 ? 'var(--warn)' : 'var(--bad)';
+  const n   = r>=-55 ? 4 : r>=-65 ? 3 : r>=-72 ? 2 : r>=-82 ? 1 : 0;
+  val.textContent = r+' dBm'; val.style.color=col; bars.innerHTML=barsHtml(n, col);
 }
 function cmdFor(action){
   return action==='bind'   ? 'BIND|'+scannerId
